@@ -93,10 +93,8 @@ def extract_headers(workbook_obj, section_str: str) -> dict:
     return output
 
 
-def extract_data(workbook_obj, section_str: str) -> dict:
-    # This function takes in the workbook and the section of data, and returns a dictionary with the filtered data
-
-    output_data_dict = {}  # create dict to hold data
+def extract_data(workbook_obj, section_str: str) -> list:
+    data_dict = {}  # create dict to hold data
 
     rows = []  # create list of lists to hold rows while looping
 
@@ -108,9 +106,12 @@ def extract_data(workbook_obj, section_str: str) -> dict:
 
         # loop through each cell in the current row
         for cell in row:
+
             # If the cell has a dash make note
             if cell.value == "–":
-                contain_dash = True
+                row_data.append("-")
+
+
             # If the value is a string (The country name) increment string count so other strings will not be accepted
             elif isinstance(cell.value, str):
                 if str_count == 0:
@@ -120,16 +121,13 @@ def extract_data(workbook_obj, section_str: str) -> dict:
             elif isinstance(cell.value, float) or isinstance(cell.value, int):
                 rounded_value = int(round(cell.value))
                 row_data.append(rounded_value)
-        # only append the row if there were no dashes
-        if contain_dash is False:
-            rows.append(row_data)
-
-    # for the amount of rows, add each to the dictionary.
-    for x in range(len(rows)):
-        output_data_dict[x] = rows[x]
+        # fixes a bug where Andorra was one dash short
+        if row_data[0] == "Andorra":
+            row_data.append("-")
+        rows.append(row_data)
 
     # return the cleaned data
-    return output_data_dict
+    return rows
 
 
 filename = "data/Lab4Data.xlsx"
@@ -138,19 +136,45 @@ workbook = openpyxl.load_workbook(filename, read_only=True, data_only=True)
 # range of headers
 header_section = "B5:AF7"
 headers_dict = extract_headers(workbook, header_section)
-# print(headers_dict)
 
 # range of data
 data_section = "B15:AF211"
-data_dict = extract_data(workbook, data_section)
+data_list = extract_data(workbook, data_section)
+
+output_headers = ["CountryName", "CategoryName", "CategoryTotal"]
+
+# This section takes the data from header dictionary and Data list and formats them correctly in a list of lists to
+# be written to a csv
+# Creates an empty list for the output to be put into
+output_list = []
+for data in data_list:  # Loop through each country's data from datalist
+
+    row = []
+    country = data[0]
+    row.append(country)  # set the country name for the CountryName column
+    i = 1  # Keeps track of which data element the loop is on
+    for key, value in headers_dict.items():  # Loops through each header for each country
+        if value == "Countries and areas":
+            continue
+        row.append(value)  # Add in the value for the CategoryName column
+        if i < len(data):  # Ensure i does not go out of bounds
+            if data[i] == "-" or data[i] == 0:  # Check if the row is equal to zero or a -, throw out if true
+                i += 1
+                row = [country]  # Reset the row list to be ready for the next iteration
+                continue
+            else:  # add in the value for the CategoryTotal Column
+                row.append(data[i])
+        i += 1
+        output_list.append(row)  # Add the row to the output list
+        row = [country]  # Reset the row list to be ready for the next iteration
 
 # Write data dict and header dict to a csv file
 with open("data/andersona26_weils3.csv", "w") as outfile:
     csvWriter = csv.writer(outfile, lineterminator='\n')
-    csvWriter.writerow(headers_dict.values())
+    csvWriter.writerow(output_headers)
     count = 0
-    for value in data_dict.values():
-        csvWriter.writerow(value)
+    for row in output_list:
+        csvWriter.writerow(row)
         count += 1
 
 # print the number of rows outputted to the csv
